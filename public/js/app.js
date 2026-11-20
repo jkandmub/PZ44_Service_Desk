@@ -9,23 +9,77 @@ function setStatus(text, kind = "info") {
   status.dataset.kind = kind;
 }
 function renderTickets(items) {
-  // TODO 1: очистите list и создайте карточку каждого обращения через createElement/textContent.
-  // В карточке нужны номер #id, имя, текст проблемы и статус.
+  list.replaceChildren();
+  if (!items.length) {
+    const empty = document.createElement("div"); 
+    empty.className = "empty";
+    empty.textContent = "Пока обращений нет";
+    list.append(empty);
+    return;
+  }
+  for (const ticket of items){
+    const article = document.createElement("h3");
+    article.className = "item";
+    const h3 = document.createElement("h3");
+    h3.textContent = `#${ticket.id}  ${ticket.customer}`;
+    const p = document.createElement("p");
+    p.textContent = ticket.problem;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = ticket.status;
+    meta.append(chip);
+    article.append(h3, meta, p);
+    list.append(article);
+  }
 }
 async function loadTickets() {
-  // TODO 2: GET /api/tickets → проверка response.ok → response.json() → renderTickets(data.items).
-  // Отобразите data.total в #summary; ошибки покажите через setStatus().
-  setStatus("TODO: выполните GET-запрос");
+ setStatus("Загружаем обращения...", "loading");
+ try {
+  const response = await fetch("/api/tickets");
+  if (!response.ok) throw new Error(`GET: HTTP ${response.status}`);
+  const data = await response.json();
+  if (!Array.isArray(data.items))
+    throw new Error("Сервер вернул неверный формат списка");
+  renderTickets(data.items);
+  summary.textContent = `Всего обращений : ${data.total}`;
+  setStatus("Список обновлён", "success");
+ } catch (error) {
+  setStatus (`Не удалось загрузить сптсок: ${error.message}`, "error");
+ }
 }
 async function createTicket(payload) {
-  // TODO 3: POST /api/tickets с заголовком Content-Type: application/json.
-  // Передайте JSON.stringify(payload); проверьте код ответа и прочитайте JSON.
+  const response = await fetch("/api/tickets",{
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload), 
+  });
+const data = await response.json();
+if (!response.ok)
+  throw new Error(data.error || `POST: HTTP ${response.status}`);
+return data;
 }
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  // TODO 4: проверьте данные, отключите sendButton на период запроса,
-  // вызовите createTicket(), очистите поля после успеха и обновите список через GET.
-  setStatus("TODO: обработайте отправку формы");
+  const customer = form.elements.customer.value.trim();
+  const problem = form.elements.problem.value.trim();
+  if (customer.length < 2 || problem.length < 5 ) {
+    setStatus("Заполните имя и описания проблемы", "error");
+    return;
+  }
+  sendButton.disabled = true;
+  setStatus("Отправляем новую заявку...", "loading");
+  try {
+    const result = await createTicket({ customer, problem });
+    form.reset();
+    await loadTickets();
+    setStatus(`${result.message}: #${result.item.id}`, "success");
+  } catch (error) {
+    setStatus(`Отправка не выполненаЖ ${error.message}`, "error");
+  }finally { 
+    sendButton.disabled = false;
+  }
 });
 refreshButton.addEventListener("click", loadTickets);
-// TODO 5: вызовите loadTickets() при загрузке страницы.
+loadTickets();
